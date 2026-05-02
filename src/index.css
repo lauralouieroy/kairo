@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/* Glow Pulse */
+@keyframes pulseGlow {
+  0% { filter: drop-shadow(0 0 8px rgba(255,107,74,0.3)); }
+  50% { filter: drop-shadow(0 0 20px rgba(255,107,74,0.6)); }
+  100% { filter: drop-shadow(0 0 8px rgba(255,107,74,0.3)); }
+}
+.animate-pulseGlow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
+}
+
+/* Ripple */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  animation: rippleEffect 600ms linear;
+  background: rgba(255,255,255,0.5);
+}
+@keyframes rippleEffect {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* Smooth number */
+@keyframes flip {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-flip {
+  animation: flip 0.3s ease;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ================= KAIRO LOGO ================= */
+
+.logo-wrapper {
+  position: relative;
+  margin-bottom: 0px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 🔥 Warm glow (matches timer color) */
+.logo-glow {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  background: radial-gradient(
+    circle,
+    rgba(255,107,74,0.6),
+    rgba(255,107,74,0.2),
+    transparent 70%
+  );
+
+  filter: blur(40px);
+  border-radius: 50%;
+
+  animation: kairoGlow 3s ease-in-out infinite;
+}
+
+/* ❌ REMOVE glass look → make it clean */
+.logo-box {
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 28px;
+
+  background: transparent;
+  border: none;
+
+  animation: float 3s ease-in-out infinite;
+}
+
+/* logo itself */
+.logo-box img {
+  width: 150px;
+  height: 150px;
+  object-fit: contain;
+
+  /* subtle glow */
+  filter: drop-shadow(0 0 10px rgba(255,107,74,0.4));
+}
+
+@keyframes kairoGlow {
+  0% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+}
