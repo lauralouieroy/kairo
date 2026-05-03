@@ -35,8 +35,14 @@ export default function Timer() {
   const [time, setTime] = useState(DURATIONS.work);
   const [isRunning, setIsRunning] = useState(false);
 
+  const [modal, setModal] = useState({
+    show: false,
+    type: "",
+  });
+
   const intervalRef = useRef(null);
   const audioRef = useRef(null);
+  const hasCompletedRef = useRef(false);
 
   const radius = 120;
   const circumference = 2 * Math.PI * radius;
@@ -50,57 +56,66 @@ export default function Timer() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // 🔔 Request notification permission
+  // 🔊 Unlock audio
   useEffect(() => {
-    if ("Notification" in window && Notification.permission !== "granted") {
-      Notification.requestPermission();
-    }
+    const unlockAudio = () => {
+      if (!audioRef.current) return;
+
+      audioRef.current
+        .play()
+        .then(() => {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        })
+        .catch(() => {});
+
+      window.removeEventListener("click", unlockAudio);
+    };
+
+    window.addEventListener("click", unlockAudio);
   }, []);
 
   // ⏱ Timer logic
   useEffect(() => {
     if (!isRunning) return;
 
+    clearInterval(intervalRef.current);
+
     intervalRef.current = setInterval(() => {
       setTime((prev) => {
-        if (prev <= 1) {
+        if (prev <= 1 && !hasCompletedRef.current) {
+          hasCompletedRef.current = true;
+
           clearInterval(intervalRef.current);
+          setIsRunning(false);
 
-          // 🔊 Play sound
-          audioRef.current?.play();
+          // 🔊 play sound
+          audioRef.current?.play().catch(() => {});
 
-          // 🔔 Notification
-          if (Notification.permission === "granted") {
-            new Notification("Kairo", {
-              body:
-                mode === "work"
-                  ? "Focus session complete 🎯"
-                  : "Break finished 💪",
-            });
-          }
-
-          // ✅ Log session
+          // 📦 save session
           if (mode === "work" && task.trim()) {
-            setSessions((prevSessions) => [
+            setSessions((prev) => [
               {
                 id: Date.now(),
                 task: task.trim(),
                 duration: DURATIONS.work,
                 createdAt: new Date().toISOString(),
               },
-              ...prevSessions,
+              ...prev,
             ]);
           }
 
+          setModal({ show: true, type: "complete" });
           setTask("");
           return 0;
         }
+
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(intervalRef.current);
-  }, [isRunning, task, mode]);
+  }, [isRunning, mode, task]);
 
   // 💾 Save
   useEffect(() => {
@@ -110,14 +125,24 @@ export default function Timer() {
     );
   }, [sessions, task]);
 
+  // ▶ Start/Pause
   const handleStartPause = () => {
-    setIsRunning((prev) => !prev);
+    if (mode === "work" && !task.trim() && !isRunning) {
+      setModal({ show: true, type: "required" });
+      return;
+    }
+
+    setIsRunning((prev) => {
+      if (!prev) hasCompletedRef.current = false;
+      return !prev;
+    });
   };
 
   const handleReset = () => {
     clearInterval(intervalRef.current);
     setTime(DURATIONS[mode]);
     setIsRunning(false);
+    hasCompletedRef.current = false;
   };
 
   const handleModeChange = (newMode) => {
@@ -125,25 +150,20 @@ export default function Timer() {
     setMode(newMode);
     setTime(DURATIONS[newMode]);
     setIsRunning(false);
+    hasCompletedRef.current = false;
   };
 
-  // 💧 Ripple effect
-  const createRipple = (e) => {
-    const button = e.currentTarget;
-    const circle = document.createElement("span");
+  const handleCloseModal = () => {
+    setModal({ show: false, type: "" });
 
-    const diameter = Math.max(button.clientWidth, button.clientHeight);
-    const radius = diameter / 2;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
 
-    circle.style.width = circle.style.height = `${diameter}px`;
-    circle.style.left = `${e.clientX - button.offsetLeft - radius}px`;
-    circle.style.top = `${e.clientY - button.offsetTop - radius}px`;
-    circle.classList.add("ripple");
-
-    const ripple = button.getElementsByClassName("ripple")[0];
-    if (ripple) ripple.remove();
-
-    button.appendChild(circle);
+    if (modal.type === "complete") {
+      setTime(DURATIONS[mode]);
+    }
   };
 
   const today = new Date().toDateString();
@@ -153,54 +173,36 @@ export default function Timer() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#0D1117] text-white px-4">
-      
-      {/* 🔊 Audio */}
-      <audio ref={audioRef} src="/alarm.mp3" />
 
+      <audio ref={audioRef} src={`${import.meta.env.BASE_URL}alarm.wav`} />
+
+      {/* HEADER */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="relative">
-            {/* subtle glow */}
-            <div className="absolute inset-0 bg-[#FF6B4A] blur-xl opacity-30 rounded-full"></div>
+        <img src={logo} className="w-9 h-9" />
+        <h1 className="text-xl font-semibold">Kairo</h1>
+      </div>
 
-            <img
-            src={logo}
-            alt="Kairo"
-            className="w-9 h-9 relative z-10"
-            />
-        </div>
-
-        <h1 className="text-xl font-semibold tracking-wide">
-            Kairo
-        </h1>
-        </div>
-
-      {/* MODE SWITCH */}
+      {/* MODE */}
       <div className="flex gap-2 mb-8 bg-[#161B22] p-1 rounded-xl">
         {["work", "short", "long"].map((m) => (
           <button
             key={m}
             onClick={() => handleModeChange(m)}
-            className={`px-4 py-1.5 rounded-lg text-sm transition ${
-              mode === m
-                ? "bg-[#FF6B4A] text-white"
-                : "text-gray-400 hover:text-white"
+            className={`px-4 py-1.5 rounded-lg ${
+              mode === m ? "bg-[#FF6B4A]" : "text-gray-400"
             }`}
           >
-            {m === "work"
-              ? "Work"
-              : m === "short"
-              ? "Short"
-              : "Long"}
+            {m}
           </button>
         ))}
       </div>
 
       {/* TIMER */}
-      <div className="relative flex items-center justify-center mb-8">
+      <div className="relative mb-8">
         <svg
           width="280"
           height="280"
-          className={`${isRunning ? "animate-pulseGlow" : ""}`}
+          className={isRunning ? "animate-pulseGlow" : ""}
         >
           <circle
             cx="140"
@@ -220,74 +222,92 @@ export default function Timer() {
             fill="none"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
             transform="rotate(-90 140 140)"
-            style={{ transition: "stroke-dashoffset 0.5s linear" }}
           />
         </svg>
 
-        {/* Smooth timer */}
-        <div className="absolute text-5xl font-semibold tabular-nums">
-          <span key={time} className="animate-flip">
-            {formatTime(time)}
-          </span>
+        <div className="absolute inset-0 flex items-center justify-center text-4xl">
+          {formatTime(time)}
         </div>
       </div>
 
       {/* TASK */}
       {mode === "work" && (
         <input
-          type="text"
-          placeholder="What are you working on?"
           value={task}
           onChange={(e) => setTask(e.target.value)}
-          className="mb-6 w-full max-w-sm px-4 py-2 rounded-xl bg-[#161B22] text-white outline-none focus:ring-2 focus:ring-[#FF6B4A]"
+          placeholder="Enter task"
+          className="mb-6 px-4 py-2 bg-[#161B22] rounded"
         />
       )}
 
-      {/* CONTROLS */}
-      <div className="flex gap-4 mb-8">
+      {/* BUTTONS */}
+      <div className="flex gap-4 mb-6">
         <button
-          onClick={(e) => {
-            createRipple(e);
-            handleStartPause();
-          }}
-          className="relative overflow-hidden px-8 py-2 rounded-xl bg-[#FF6B4A] hover:bg-[#FF7A5C] active:scale-95 transition"
+          onClick={handleStartPause}
+          className="bg-[#FF6B4A] px-6 py-2 rounded"
         >
           {isRunning ? "Pause" : "Start"}
         </button>
 
         <button
-          onClick={(e) => {
-            createRipple(e);
-            handleReset();
-          }}
-          className="relative overflow-hidden px-6 py-2 rounded-xl bg-[#1F2937] hover:bg-[#374151]"
+          onClick={handleReset}
+          className="bg-gray-700 px-6 py-2 rounded"
         >
           Reset
         </button>
       </div>
 
       {/* SESSIONS */}
-      <div className="w-full max-w-sm bg-[#161B22] p-4 rounded-xl">
-        <h2 className="text-sm text-gray-400 mb-2">Today</h2>
+      <div className="w-full max-w-sm bg-[#161B22] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#1F2937]">
+          <h2 className="text-sm text-gray-400">Today</h2>
+        </div>
 
-        {todaysSessions.length === 0 ? (
-          <p className="text-gray-500 text-sm">No sessions yet</p>
-        ) : (
-          <ul className="space-y-2">
-            {todaysSessions.map((s) => (
-              <li
+        <div className="max-h-[220px] overflow-y-auto px-3 py-2 space-y-2 custom-scroll">
+          {todaysSessions.length === 0 ? (
+            <div className="flex items-center justify-center h-[150px]">
+              <p className="text-gray-500 text-sm">No sessions yet</p>
+            </div>
+          ) : (
+            todaysSessions.map((s) => (
+              <div
                 key={s.id}
-                className="px-3 py-2 rounded-lg bg-[#0D1117] text-sm flex justify-between"
+                className="px-3 py-2 rounded-lg bg-[#0D1117] text-sm flex justify-between items-center"
               >
                 <span>{s.task}</span>
-                <span className="text-gray-400">25m</span>
-              </li>
-            ))}
-          </ul>
-        )}
+                <span className="text-gray-400 text-xs">25m</span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
+
+      {/* MODAL */}
+      {modal.show && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60">
+          <div className="bg-[#161B22] p-6 rounded-xl text-center w-[300px]">
+            <h2 className="text-lg mb-2">
+              {modal.type === "complete"
+                ? "Session Complete"
+                : "Task Required"}
+            </h2>
+
+            <p className="text-gray-400 mb-4">
+              {modal.type === "complete"
+                ? "Great job!"
+                : "Please enter a task before starting."}
+            </p>
+
+            <button
+              onClick={handleCloseModal}
+              className="bg-[#FF6B4A] px-6 py-2 rounded"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
